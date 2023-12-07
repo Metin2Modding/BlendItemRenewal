@@ -6,13 +6,13 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-nlohmann::json container;
+nlohmann::json json_blend;
 
 bool Blend_Item_init()
 {
 	try
 	{
-		container = nlohmann::json::parse(std::ifstream(LocaleService_GetBasePath() + "/blend.json"), nullptr, true, true);
+		json_blend = nlohmann::json::parse(std::ifstream(LocaleService_GetBasePath() + "/blend.json"), nullptr, true, true);
 		return true;
 	}
 	catch (const nlohmann::json::parse_error& message)
@@ -24,11 +24,7 @@ bool Blend_Item_init()
 
 bool Blend_Item_find(const uint32_t item)
 {
-#if ((defined(_MSVC_LANG) && _MSVC_LANG >= 202004L) || __cplusplus >= 202004L)
-	return container.contains(std::to_string(item));
-#else
-	return container.find(std::to_string(item)) != container.end();
-#endif
+	return json_blend.find(std::to_string(item)) != json_blend.end();
 }
 
 void Blend_Item_set_value(const LPITEM item)
@@ -36,14 +32,19 @@ void Blend_Item_set_value(const LPITEM item)
 	if (!item)
 		return;
 
-	const auto& result = container.find(std::to_string(item->GetVnum())).value();
+	try
+	{
+		const auto& find = json_blend.find(std::to_string(item->GetVnum())).value();
+		const auto& type = find.at("type");
+		const auto& value = find.at("value");
+		const auto& duration = find.at("duration");
 
-	const auto& type = result.at("type");
-	item->SetSocket(0, type.is_number() ? type.get<int32_t>() : FN_get_apply_type(type.get<std::string>().c_str()));
-
-	const auto& value = result.at("value");
-	item->SetSocket(1, !value.is_array() ? value.at(0) : value.at(number(0, value.size() - 1)));
-
-	const auto& duration = result.at("duration");
-	item->SetSocket(2, !duration.is_array() ? duration.at(0) : duration.at(number(0, duration.size() - 1)));
+		item->SetSocket(0, type.is_number() ? type.get<int32_t>() : FN_get_apply_type(type.get<std::string>().c_str()));
+		item->SetSocket(1, value.is_number() ? value.get<int32_t>() : value.at(number(0, value.size() - 1)));
+		item->SetSocket(2, duration.is_number() ? duration.get<int32_t>() : duration.at(number(0, duration.size() - 1)));
+	}
+	catch (const nlohmann::json::exception& message)
+	{
+		sys_err("%s", message.what());
+	}
 }
