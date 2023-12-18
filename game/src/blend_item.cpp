@@ -4,7 +4,6 @@
 #include "locale_service.h"
 
 #include <fstream>
-#include <nlohmann/json.hpp>
 
 nlohmann::json json_blend;
 
@@ -24,7 +23,15 @@ bool Blend_Item_init()
 
 bool Blend_Item_find(const uint32_t item)
 {
-	return json_blend.find(std::to_string(item)) != json_blend.end();
+	return json_blend.contains(std::to_string(item));
+}
+
+int32_t Blend_Item_verify(const nlohmann::json& item, const bool can_string)
+{
+	if (item.is_number())
+		return item.get<int32_t>();
+
+	return can_string ? FN_get_apply_type(item.get<std::string>().c_str()) : item.at(number(0, item.size() - 1)).get<int32_t>();
 }
 
 void Blend_Item_set_value(const LPITEM item)
@@ -35,13 +42,9 @@ void Blend_Item_set_value(const LPITEM item)
 	try
 	{
 		const auto& find = json_blend.find(std::to_string(item->GetVnum())).value();
-		const auto& type = find.at("type");
-		const auto& value = find.at("value");
-		const auto& duration = find.at("duration");
-
-		item->SetSocket(0, type.is_number() ? type.get<int32_t>() : FN_get_apply_type(type.get<std::string>().c_str()));
-		item->SetSocket(1, value.is_number() ? value.get<int32_t>() : value.at(number(0, value.size() - 1)));
-		item->SetSocket(2, duration.is_number() ? duration.get<int32_t>() : duration.at(number(0, duration.size() - 1)));
+		item->SetSocket(0, Blend_Item_verify(find.at("type"), true));
+		item->SetSocket(1, Blend_Item_verify(find.at("value"), false));
+		item->SetSocket(2, Blend_Item_verify(find.at("duration"), false));
 	}
 	catch (const nlohmann::json::exception& message)
 	{
